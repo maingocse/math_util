@@ -1,0 +1,174 @@
+# =====================================================================
+#  MATH UTILITY PROJECT - CI PIPELINE
+#  © 2026 by NgocMaiNguyen
+# ---------------------------------------------------------------------
+#  Mục đích: Tự động build + test project Java/Maven mỗi khi có code
+#            được push lên nhánh main hoặc có Pull Request vào main.
+#
+#  Nội dung chính:
+#   1. Cấu trúc file YAML (indent bằng SPACE, KHÔNG dùng TAB)
+#   2. Các khái niệm: workflow, job, step, action, runner
+#   3. Cách dùng biểu thức ${{ ... }} của GitHub
+# =====================================================================
+
+name: Math Utility Project (CI included) | © 2026 by TriVyNguyen
+# Tên hiển thị trên tab Actions của GitHub.
+
+
+# ---------------------------------------------------------------------
+# 1. KHI NÀO PIPELINE NÀY CHẠY? (TRIGGER)
+# ---------------------------------------------------------------------
+on:
+  push:
+    branches: ["main"]
+    # Chạy khi có code được push lên nhánh main.
+
+  pull_request:
+    branches: ["main"]
+    # Chạy khi có Pull Request được mở hoặc cập nhật vào nhánh main.
+
+  workflow_dispatch:
+    # Cho phép chạy thủ công bằng nút Run workflow trên GitHub.
+
+
+# ---------------------------------------------------------------------
+# 2. QUYỀN CỦA GITHUB TOKEN
+# ---------------------------------------------------------------------
+# Chỉ cấp quyền đọc nội dung repository cho workflow này.
+permissions:
+  contents: read
+
+
+# ---------------------------------------------------------------------
+# 3. HỦY LẦN CHẠY CŨ KHI CÓ LẦN CHẠY MỚI CÙNG NHÓM
+# ---------------------------------------------------------------------
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+
+# ---------------------------------------------------------------------
+# 4. KHAI BÁO CÁC JOB
+# ---------------------------------------------------------------------
+jobs:
+  build:
+    # Runner là môi trường thực hiện các bước trong job.
+    runs-on: ubuntu-latest
+
+    # Tự hủy job nếu chạy quá 15 phút.
+    timeout-minutes: 15
+
+    # Các bước chạy tuần tự từ trên xuống.
+    steps:
+
+      # ---------------------------------------------------------------
+      # BƯỚC 1: LẤY SOURCE CODE TỪ REPOSITORY
+      # ---------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      # ---------------------------------------------------------------
+      # BƯỚC 2: THIẾT LẬP JDK
+      # ---------------------------------------------------------------
+      - name: Set up JDK 26
+        uses: actions/setup-java@v6
+        with:
+          # Chọn phiên bản Java phù hợp với project.
+          java-version: '26'
+
+          # Sử dụng bản phân phối Eclipse Temurin.
+          distribution: 'temurin'
+
+          # Cache dependency Maven để tăng tốc các lần build tiếp theo.
+          cache: maven
+
+      # ---------------------------------------------------------------
+      # BƯỚC 3: BUILD VÀ CHẠY TEST BẰNG MAVEN
+      # ---------------------------------------------------------------
+      - name: Build and Test with Maven
+        run: mvn -B package --no-transfer-progress --file pom.xml
+        # Giải thích:
+        #   -B                     : Chạy Maven ở chế độ không tương tác.
+        #   package                : Biên dịch, chạy test và đóng gói.
+        #   --no-transfer-progress : Ẩn tiến trình tải dependency.
+        #   --file pom.xml         : Dùng file pom.xml ở thư mục gốc.
+
+      # ---------------------------------------------------------------
+      # BƯỚC 4: CHUẨN BỊ FILE JAR HOẶC WAR ĐỂ UPLOAD
+      # ---------------------------------------------------------------
+      - name: Distribute jar-war file
+        run: |
+          # Tạo thư mục staging để chứa artifact.
+          mkdir -p staging
+
+          # Ưu tiên file WAR nếu có.
+          if ls target/*.war 1>/dev/null 2>&1; then
+            cp target/*.war staging/
+            echo "✅ Đã copy file .war"
+
+          # Nếu không có WAR thì tìm file JAR.
+          elif ls target/*.jar 1>/dev/null 2>&1; then
+            # Bỏ qua các file có tên bắt đầu bằng original-.
+            find target -maxdepth 1 -name "*.jar" ! -name "original-*.jar" \
+                 -exec cp {} staging/ \;
+            echo "✅ Đã copy file .jar"
+
+          # Báo lỗi nếu không tìm thấy file phù hợp.
+          else
+            echo "❌ Không tìm thấy file .jar hoặc .war trong target/"
+            echo "   Kiểm tra lại pom.xml và cấu hình <packaging>"
+            exit 1
+          fi
+
+          # Hiển thị các file đã chuẩn bị.
+          ls -lh staging/
+
+      # ---------------------------------------------------------------
+      # BƯỚC 5: UPLOAD ARTIFACT LÊN GITHUB
+      # ---------------------------------------------------------------
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v6
+        with:
+          # Tên artifact hiển thị trên trang kết quả workflow.
+          name: click_tri_vy_to_download-${{ github.run_number }}
+
+          # Thư mục chứa các file cần upload.
+          path: staging
+
+          # Lưu artifact trong 7 ngày.
+          retention-days: 7
+
+          # Mức nén từ 0 đến 9.
+          compression-level: 6
+
+          # Báo lỗi nếu không có file để upload.
+          if-no-files-found: error
+
+
+# =====================================================================
+#  GHI CHÚ KỸ THUẬT
+# =====================================================================
+#
+#  1. Lưu file tại:
+#     .github/workflows/maven-ci.yml
+#
+#  2. Dùng SPACE để thụt dòng, KHÔNG dùng TAB.
+#
+#  3. File pom.xml phải nằm ở thư mục gốc của repository.
+#     Nếu nằm trong thư mục con, cần sửa đường dẫn ở lệnh Maven.
+#
+#  4. Nếu project dùng Java 17 hoặc Java 21, đổi java-version tương ứng
+#     và sửa tên bước Set up JDK cho khớp.
+#
+#  5. Không commit token hoặc password vào repository.
+#     Nếu cần dùng secret, khai báo trong GitHub Secrets và tham chiếu:
+#     ${{ secrets.TEN_BIEN }}
+#
+#  6. Sau khi commit, mở tab Actions để theo dõi kết quả.
+#     Nếu thành công, tải file tại mục Artifacts của lần chạy.
+#
+#  7. Có thể mở rộng bằng:
+#     - strategy.matrix để kiểm thử nhiều phiên bản Java.
+#     - Các bước xử lý lỗi với điều kiện if: failure().
+#
+# =====================================================================
