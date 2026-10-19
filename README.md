@@ -4,6 +4,8 @@
 * A Maven project to implement Math Util library
 * A JUnit source code to demonstrate the Unit Testing, TDD and DDT technique
 * A CI script to check and build the project automatically with Github actions
+  
+![Math Utility screenshot](screen-shot/test-result.png)
 
 #### Connect me via: maingocse200139@gmail.com
 
