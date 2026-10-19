@@ -2,8 +2,6 @@
 
 # Welcome to Math Utility
 
-![Math Utility screenshot](screen-shot/test-result.png)
-
 ### You will find in this repo the following stuff:
 
 * A Maven project to implement Math Util library
