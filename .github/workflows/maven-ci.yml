@@ -130,7 +130,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           # Tên artifact hiển thị trên trang kết quả workflow.
-          name: click_tri_vy_to_download-${{ github.run_number }}
+          name: click_ngoc_mai_to_download-${{ github.run_number }}
 
           # Thư mục chứa các file cần upload.
           path: staging
